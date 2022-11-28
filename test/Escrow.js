@@ -81,7 +81,12 @@ describe('Escrow', () => {
 		await approveTx.wait();
 
 		// list reNFT
-		let listNFT = await EscrowContract.connect(seller).list(1);
+		let listNFT = await EscrowContract.connect(seller).list(
+			1,
+			buyer.address,
+			tokensInWei(10),
+			tokensInWei(5)
+		);
 		await listNFT.wait();
 
 		return {
@@ -150,6 +155,60 @@ describe('Escrow', () => {
 			);
 
 			expect(await reNftContract.ownerOf(1)).to.equal(EscrowContract.address);
+		});
+
+		it('returns buyer', async () => {
+			const { EscrowContract, buyer } = await loadFixture(
+				deployWithListingFixture
+			);
+
+			const result = await EscrowContract.buyer(1);
+			expect(result).to.equal(buyer.address);
+		});
+
+		it('returns purchase price', async () => {
+			const { EscrowContract } = await loadFixture(deployWithListingFixture);
+
+			const result = await EscrowContract.purchasePrice(1);
+			expect(result).to.equal(tokensInWei(10));
+		});
+
+		it('returns amount', async () => {
+			const { EscrowContract, buyer } = await loadFixture(
+				deployWithListingFixture
+			);
+
+			const result = await EscrowContract.escrowAmount(1);
+			expect(result).to.equal(tokensInWei(5));
+		});
+
+		it('only allows seller to list NFT', async () => {
+			const { buyer, seller, EscrowContract, reNftContract } =
+				await loadFixture(deployWithListingFixture);
+
+			// mint 2nd NFT
+			let tx2 = await reNftContract
+				.connect(seller)
+				.mint(
+					'https://ipfs.io/ipfs/QmQUozrHLAusXDxrvsESJ3PYB3rUeUuBAvVWw6nop2uu7c/1.png'
+				);
+			await tx2.wait();
+
+			// approve NFT to be transferred
+			let approveTx2 = await reNftContract
+				.connect(seller)
+				.approve(EscrowContract.address, 2);
+			await approveTx2.wait();
+
+			// try to list reNFT
+			await expect(
+				EscrowContract.connect(buyer).list(
+					2,
+					buyer.address,
+					tokensInWei(8),
+					tokensInWei(4)
+				)
+			).reverted;
 		});
 	});
 });

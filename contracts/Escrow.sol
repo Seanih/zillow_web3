@@ -32,10 +32,37 @@ contract Escrow {
         lender = _lender;
     }
 
-    function list(uint256 _nftID) public {
+    modifier onlySeller() {
+        require(msg.sender == seller, "Only the seller can make this call");
+        _;
+    }
+
+    modifier onlyBuyer(uint256 _nftID) {
+        require(
+            msg.sender == buyer[_nftID],
+            "only an approved buyer can call this function"
+        );
+        _;
+    }
+
+    function list(
+        uint256 _nftID,
+        address _buyer,
+        uint256 _purchasePrice,
+        uint256 _escrowAmount
+    ) public payable onlySeller {
         //* contract must first be approved to transfer NFTs
+
         IERC721(nftAddress).transferFrom(msg.sender, address(this), _nftID);
 
         isListed[_nftID] = true;
+        buyer[_nftID] = _buyer;
+        purchasePrice[_nftID] = _purchasePrice;
+        escrowAmount[_nftID] = _escrowAmount;
+    }
+
+    // buyer deposits downpayment to contract
+    function depositEarnest(uint256 _nftID) public payable onlyBuyer(_nftID) {
+        require((msg.value >= escrowAmount[_nftID]));
     }
 }
