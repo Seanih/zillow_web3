@@ -29,7 +29,7 @@ describe('Escrow', () => {
 			);
 		await tx.wait();
 
-		let escNftAdd = await EscrowContract.nftAddress();
+		let escNftAdd = await EscrowContract.nftContractAddress();
 
 		// approve NFT to be transferred
 		let approveTx = await reNftContract
@@ -72,7 +72,7 @@ describe('Escrow', () => {
 			);
 		await tx.wait();
 
-		let escNftAdd = await EscrowContract.nftAddress();
+		let escNftAdd = await EscrowContract.nftContractAddress();
 
 		// approve NFT to be transferred
 		let approveTx = await reNftContract
@@ -100,6 +100,67 @@ describe('Escrow', () => {
 		};
 	}
 
+	async function deployWithApprovalsFixture() {
+		let [buyer, seller, inspector, lender] = await ethers.getSigners();
+		// Deploy contracts
+		const reContract = await ethers.getContractFactory('RealEstate');
+		const reNftContract = await reContract.deploy();
+		await reNftContract.deployed(1);
+
+		const escrow = await ethers.getContractFactory('Escrow');
+		const EscrowContract = await escrow.deploy(
+			reNftContract.address,
+			seller.address,
+			inspector.address,
+			lender.address
+		);
+		await EscrowContract.deployed();
+
+		// mint 1st NFT
+		let tx = await reNftContract
+			.connect(seller)
+			.mint(
+				'https://ipfs.io/ipfs/QmQUozrHLAusXDxrvsESJ3PYB3rUeUuBAvVWw6nop2uu7c/1.png'
+			);
+		await tx.wait();
+
+		let escNftAdd = await EscrowContract.nftContractAddress();
+
+		// approve NFT to be transferred
+		let approveTx = await reNftContract
+			.connect(seller)
+			.approve(EscrowContract.address, 1);
+		await approveTx.wait();
+
+		// list reNFT
+		let listNFT = await EscrowContract.connect(seller).list(
+			1,
+			buyer.address,
+			tokensInWei(10),
+			tokensInWei(5)
+		);
+		await listNFT.wait();
+
+		tx = await EscrowContract.connect(lender).approveSale(1);
+		await tx.wait();
+
+		tx = await EscrowContract.connect(buyer).approveSale(1);
+		await tx.wait();
+
+		tx = await EscrowContract.connect(seller).approveSale(1);
+		await tx.wait();
+
+		return {
+			buyer,
+			seller,
+			inspector,
+			lender,
+			reNftContract,
+			EscrowContract,
+			escNftAdd,
+		};
+	}
+
 	describe('Deployment', () => {
 		it('returns NFT address', async () => {
 			const { reNftContract, escNftAdd } = await loadFixture(
@@ -114,7 +175,7 @@ describe('Escrow', () => {
 				deployContractFixture
 			);
 
-			expect(await EscrowContract.seller()).to.equal(seller.address);
+			expect(await EscrowContract.sellerAddress()).to.equal(seller.address);
 		});
 
 		it('returns inspector address', async () => {
@@ -122,7 +183,9 @@ describe('Escrow', () => {
 				deployContractFixture
 			);
 
-			expect(await EscrowContract.inspector()).to.equal(inspector.address);
+			expect(await EscrowContract.inspectorAddress()).to.equal(
+				inspector.address
+			);
 		});
 
 		it('returns lender address', async () => {
@@ -130,7 +193,7 @@ describe('Escrow', () => {
 				deployContractFixture
 			);
 
-			expect(await EscrowContract.lender()).to.equal(lender.address);
+			expect(await EscrowContract.lenderAddress()).to.equal(lender.address);
 		});
 
 		it('mints NFT', async () => {
@@ -209,6 +272,107 @@ describe('Escrow', () => {
 					tokensInWei(4)
 				)
 			).reverted;
+		});
+	});
+
+	describe('Deposits', () => {
+		it('updates contract balance', async () => {
+			const { EscrowContract, buyer } = await loadFixture(
+				deployWithListingFixture
+			);
+
+			let deposit = await EscrowContract.connect(buyer).depositEarnest(1, {
+				value: tokensInWei(5),
+			});
+			await deposit.wait();
+
+			expect(await EscrowContract.getBalance()).to.equal(tokensInWei(5));
+		});
+	});
+
+	describe('Inspection', () => {
+		it('updates inspection status', async () => {
+			const { EscrowContract, inspector } = await loadFixture(
+				deployWithListingFixture
+			);
+
+			let approveInspection = await EscrowContract.connect(
+				inspector
+			).approveInspection(1);
+			await approveInspection.wait();
+
+			expect(await EscrowContract.inspectionPassed(1)).to.equal(true);
+		});
+	});
+
+	describe('Sale Process', () => {
+		it('approves the sale', async () => {
+			const { EscrowContract, lender, buyer, seller } = await loadFixture(
+				deployWithApprovalsFixture
+			);
+
+			expect(await EscrowContract.saleApproved(1, lender.address)).to.equal(
+				true
+			);
+			expect(await EscrowContract.saleApproved(1, buyer.address)).to.equal(
+				true
+			);
+			expect(await EscrowContract.saleApproved(1, seller.address)).to.equal(
+				true
+			);
+		});
+
+		it('finalizes sale', async () => {
+			const { EscrowContract, lender, inspector, seller, buyer } =
+				await loadFixture(deployWithApprovalsFixture);
+
+			let deposit = await EscrowContract.connect(buyer).depositEarnest(1, {
+				value: tokensInWei(5),
+			});
+			await deposit.wait();
+
+			let tx = await EscrowContract.connect(inspector).approveInspection(1);
+			await tx.wait();
+
+			tx = await EscrowContract.connect(lender).depositBalance(1, {
+				value: tokensInWei(5),
+			});
+			await tx.wait();
+
+			//----------- tests
+			await expect(
+				EscrowContract.connect(seller).finalizeSale(1)
+			).to.changeEtherBalances(
+				[EscrowContract.address, seller.address],
+				[tokensInWei(-10), tokensInWei(10)]
+			);
+		});
+
+		it('transfers NFT from contract to buyer', async () => {
+			const { EscrowContract, reNftContract, lender, inspector, buyer, seller } =
+				await loadFixture(deployWithApprovalsFixture);
+
+			let deposit = await EscrowContract.connect(buyer).depositEarnest(1, {
+				value: tokensInWei(5),
+			});
+			await deposit.wait();
+
+			let tx = await EscrowContract.connect(inspector).approveInspection(1);
+			await tx.wait();
+
+			tx = await EscrowContract.connect(lender).depositBalance(1, {
+				value: tokensInWei(5),
+			});
+			await tx.wait();
+
+			await expect(
+				EscrowContract.connect(seller).finalizeSale(1)
+			).to.changeEtherBalances(
+				[EscrowContract.address, seller.address],
+				[tokensInWei(-10), tokensInWei(10)]
+			);
+
+			expect(await reNftContract.ownerOf(1)).to.equal(buyer.address);
 		});
 	});
 });

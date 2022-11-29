@@ -10,15 +10,17 @@ interface IERC721 {
 }
 
 contract Escrow {
-    address public nftAddress;
-    address payable public seller;
-    address public inspector;
-    address public lender;
+    address public nftContractAddress;
+    address payable public sellerAddress;
+    address public inspectorAddress;
+    address public lenderAddress;
 
     mapping(uint256 => bool) public isListed;
     mapping(uint256 => uint256) public purchasePrice;
     mapping(uint256 => uint256) public escrowAmount;
     mapping(uint256 => address) public buyer;
+    mapping(uint256 => bool) public inspectionPassed;
+    mapping(uint256 => mapping(address => bool)) public saleApproved;
 
     constructor(
         address _nftAddress,
@@ -26,14 +28,17 @@ contract Escrow {
         address _inspector,
         address _lender
     ) {
-        nftAddress = _nftAddress;
-        seller = _seller;
-        inspector = _inspector;
-        lender = _lender;
+        nftContractAddress = _nftAddress;
+        sellerAddress = _seller;
+        inspectorAddress = _inspector;
+        lenderAddress = _lender;
     }
 
     modifier onlySeller() {
-        require(msg.sender == seller, "Only the seller can make this call");
+        require(
+            msg.sender == sellerAddress,
+            "Only the seller can make this call"
+        );
         _;
     }
 
@@ -41,6 +46,24 @@ contract Escrow {
         require(
             msg.sender == buyer[_nftID],
             "only an approved buyer can call this function"
+        );
+        _;
+    }
+
+    modifier onlyInspector() {
+        require(
+            msg.sender == inspectorAddress,
+            "Only the inspector can call this function"
+        );
+        _;
+    }
+
+    modifier participantsOnly(uint256 _nftID) {
+        require(
+            msg.sender == lenderAddress ||
+                msg.sender == buyer[_nftID] ||
+                msg.sender == sellerAddress,
+            "This address is not authorized to call this function"
         );
         _;
     }
@@ -53,16 +76,76 @@ contract Escrow {
     ) public payable onlySeller {
         //* contract must first be approved to transfer NFTs
 
-        IERC721(nftAddress).transferFrom(msg.sender, address(this), _nftID);
+        IERC721(nftContractAddress).transferFrom(
+            msg.sender,
+            address(this),
+            _nftID
+        );
 
         isListed[_nftID] = true;
         buyer[_nftID] = _buyer;
         purchasePrice[_nftID] = _purchasePrice;
         escrowAmount[_nftID] = _escrowAmount;
+        inspectionPassed[_nftID];
+    }
+
+    // allow contract to receive funds from lender
+    function depositBalance(uint256 _nftID) public payable {
+        require(
+            msg.sender == lenderAddress || msg.sender == buyer[_nftID],
+            "Only the lender or buyer can send funds to this contract"
+        );
     }
 
     // buyer deposits downpayment to contract
     function depositEarnest(uint256 _nftID) public payable onlyBuyer(_nftID) {
-        require((msg.value >= escrowAmount[_nftID]));
+        require(
+            msg.value >= escrowAmount[_nftID],
+            "you have to deposit at least the minimum requirement"
+        );
+    }
+
+    function getBalance() public view returns (uint256) {
+        return address(this).balance;
+    }
+
+    function approveInspection(uint256 _nftID) public onlyInspector {
+        inspectionPassed[_nftID] = true;
+    }
+
+    function approveSale(uint256 _nftID) public participantsOnly(_nftID) {
+        saleApproved[_nftID][msg.sender] = true;
+    }
+
+    function finalizeSale(uint256 _nftID) public onlySeller {
+        require(inspectionPassed[_nftID], "inspection must pass first");
+        require(
+            saleApproved[_nftID][lenderAddress],
+            "lender must approve the sale"
+        );
+        //buyer[_nftID] is the buyer's address
+        require(
+            saleApproved[_nftID][buyer[_nftID]],
+            "buyer must approve the sale"
+        );
+        require(
+            saleApproved[_nftID][sellerAddress],
+            "seller must approve the sale"
+        );
+        // ensure contract has enough funds
+        require(
+            address(this).balance >= purchasePrice[_nftID],
+            "not enough funds in contract"
+        );
+
+        // send purchase amount to seller from contract
+        (bool success, ) = sellerAddress.call{value: purchasePrice[_nftID]}("");
+        require(success, "sale failed; please check and try again");
+
+        IERC721(nftContractAddress).transferFrom(
+            address(this),
+            buyer[_nftID],
+            _nftID
+        );
     }
 }
