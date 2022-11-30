@@ -219,7 +219,7 @@ contract Escrow {
             saleApproved[_nftID][lenderAddress],
             "lender must approve the sale"
         );
-        //buyerAddress is the buyer's address
+
         require(
             saleApproved[_nftID][buyerAddress],
             "buyer must approve the sale"
