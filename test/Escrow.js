@@ -15,9 +15,7 @@ describe('Escrow', () => {
 		const escrow = await ethers.getContractFactory('Escrow');
 		const EscrowContract = await escrow.deploy(
 			reNftContract.address,
-			seller.address,
-			inspector.address,
-			lender.address
+			seller.address
 		);
 		await EscrowContract.deployed();
 
@@ -36,6 +34,15 @@ describe('Escrow', () => {
 			.connect(seller)
 			.approve(EscrowContract.address, 1);
 		await approveTx.wait();
+
+		// add lender and inspector addresses to contract
+		let addLender = await EscrowContract.connect(seller).addLender(
+			lender.address
+		);
+
+		let addInspector = await EscrowContract.connect(seller).addInspector(
+			inspector.address
+		);
 
 		return {
 			buyer,
@@ -58,9 +65,7 @@ describe('Escrow', () => {
 		const escrow = await ethers.getContractFactory('Escrow');
 		const EscrowContract = await escrow.deploy(
 			reNftContract.address,
-			seller.address,
-			inspector.address,
-			lender.address
+			seller.address
 		);
 		await EscrowContract.deployed();
 
@@ -79,6 +84,15 @@ describe('Escrow', () => {
 			.connect(seller)
 			.approve(EscrowContract.address, 1);
 		await approveTx.wait();
+
+		// add lender and inspector addresses to contract
+		let addLender = await EscrowContract.connect(seller).addLender(
+			lender.address
+		);
+
+		let addInspector = await EscrowContract.connect(seller).addInspector(
+			inspector.address
+		);
 
 		// list reNFT
 		let listNFT = await EscrowContract.connect(seller).list(
@@ -110,9 +124,7 @@ describe('Escrow', () => {
 		const escrow = await ethers.getContractFactory('Escrow');
 		const EscrowContract = await escrow.deploy(
 			reNftContract.address,
-			seller.address,
-			inspector.address,
-			lender.address
+			seller.address
 		);
 		await EscrowContract.deployed();
 
@@ -132,6 +144,15 @@ describe('Escrow', () => {
 			.approve(EscrowContract.address, 1);
 		await approveTx.wait();
 
+		// add lender and inspector addresses to contract
+		let addLender = await EscrowContract.connect(seller).addLender(
+			lender.address
+		);
+
+		let addInspector = await EscrowContract.connect(seller).addInspector(
+			inspector.address
+		);
+
 		// list reNFT
 		let listNFT = await EscrowContract.connect(seller).list(
 			1,
@@ -140,6 +161,9 @@ describe('Escrow', () => {
 			tokensInWei(5)
 		);
 		await listNFT.wait();
+
+		tx = await EscrowContract.connect(inspector).approveInspection(1);
+		await tx.wait();
 
 		tx = await EscrowContract.connect(lender).approveSale(1);
 		await tx.wait();
@@ -220,7 +244,7 @@ describe('Escrow', () => {
 			expect(await reNftContract.ownerOf(1)).to.equal(EscrowContract.address);
 		});
 
-		it('returns buyer', async () => {
+		it('returns buyer address', async () => {
 			const { EscrowContract, buyer } = await loadFixture(
 				deployWithListingFixture
 			);
@@ -236,12 +260,12 @@ describe('Escrow', () => {
 			expect(result).to.equal(tokensInWei(10));
 		});
 
-		it('returns amount', async () => {
+		it('returns amount of earnest deposit', async () => {
 			const { EscrowContract, buyer } = await loadFixture(
 				deployWithListingFixture
 			);
 
-			const result = await EscrowContract.escrowAmount(1);
+			const result = await EscrowContract.earnestDeposit(1);
 			expect(result).to.equal(tokensInWei(5));
 		});
 
@@ -331,9 +355,6 @@ describe('Escrow', () => {
 			});
 			await deposit.wait();
 
-			let tx = await EscrowContract.connect(inspector).approveInspection(1);
-			await tx.wait();
-
 			tx = await EscrowContract.connect(lender).depositBalance(1, {
 				value: tokensInWei(5),
 			});
@@ -348,9 +369,15 @@ describe('Escrow', () => {
 			);
 		});
 
-		it('transfers NFT from contract to buyer', async () => {
-			const { EscrowContract, reNftContract, lender, inspector, buyer, seller } =
-				await loadFixture(deployWithApprovalsFixture);
+		it('transfers NFT from contract to buyer & updates ETH balances', async () => {
+			const {
+				EscrowContract,
+				reNftContract,
+				lender,
+				inspector,
+				buyer,
+				seller,
+			} = await loadFixture(deployWithApprovalsFixture);
 
 			let deposit = await EscrowContract.connect(buyer).depositEarnest(1, {
 				value: tokensInWei(5),
@@ -365,6 +392,7 @@ describe('Escrow', () => {
 			});
 			await tx.wait();
 
+			//------------ tests
 			await expect(
 				EscrowContract.connect(seller).finalizeSale(1)
 			).to.changeEtherBalances(
@@ -373,6 +401,61 @@ describe('Escrow', () => {
 			);
 
 			expect(await reNftContract.ownerOf(1)).to.equal(buyer.address);
+		});
+	});
+
+	describe('Cancel Sale', function () {
+		it('buyer or seller can cancel the sale', async () => {
+			const { EscrowContract, lender, buyer, seller } = await loadFixture(
+				deployWithApprovalsFixture
+			);
+
+			let deposit = await EscrowContract.connect(buyer).depositEarnest(1, {
+				value: tokensInWei(5),
+			});
+			await deposit.wait();
+
+			tx = await EscrowContract.connect(lender).depositBalance(1, {
+				value: tokensInWei(5),
+			});
+			await tx.wait();
+
+			let cancelSale = await EscrowContract.connect(seller).cancelSale(1);
+			await cancelSale.wait();
+
+			expect(await EscrowContract.cancelledSales(1)).to.equal(seller.address);
+		});
+
+		it('returns funds & NFT to respective depositors', async () => {
+			const { EscrowContract, lender, buyer, seller, reNftContract } =
+				await loadFixture(deployWithApprovalsFixture);
+
+			let deposit = await EscrowContract.connect(buyer).depositEarnest(1, {
+				value: tokensInWei(5),
+			});
+			await deposit.wait();
+
+			tx = await EscrowContract.connect(lender).depositBalance(1, {
+				value: tokensInWei(5),
+			});
+			await tx.wait();
+
+			//*----------- test seller cancel
+			await expect(
+				EscrowContract.connect(seller).cancelSale(1)
+			).to.changeEtherBalances(
+				[EscrowContract.address, lender.address, buyer.address],
+				[tokensInWei(-10), tokensInWei(5), tokensInWei(5)]
+			);
+
+			//*----------- test buyer cancel
+			// await expect(EscrowContract.cancelSale(1)).to.changeEtherBalances(
+			// 	[EscrowContract.address, lender.address, buyer.address],
+			// 	[tokensInWei(-10), tokensInWei(5), 0]
+			// );
+
+			//*----------- NFT transfer
+			expect(await reNftContract.ownerOf(1)).to.equal(seller.address);
 		});
 	});
 });
