@@ -7,7 +7,39 @@
 const { ethers } = require('hardhat');
 
 async function main() {
-	
+	let [buyer, seller, lender, inspector] = await ethers.getSigners();
+
+	// Deploy real estate NFT contract
+	const reContract = await ethers.getContractFactory('RealEstate');
+	const ReNftContract = await reContract.deploy();
+	await ReNftContract.deployed();
+
+	console.log(`Deployed real estate NFT contract to: ${ReNftContract.address}`);
+	console.log('Minting 3 properties...');
+
+	let mintNft;
+	for (let i = 1; i < 3; i++) {
+		mintNft = await ReNftContract.connect(seller).mint(
+			`https://ipfs.io/ipfs/QmQVcpsjrA6cr1iJjZAodYwmPekYgbnXGo4DFubJiLc2EB/${i}.json`
+		);
+
+		await mintNft.wait();
+	}
+
+	// Deploy Escrow contract
+	const escrow = await ethers.getContractFactory('Escrow');
+	const EscrowContract = await escrow.deploy(
+		ReNftContract.address,
+		seller.address
+	);
+	await EscrowContract.deployed();
+
+	// add lender and inspector to contract
+	const addLender = await EscrowContract.connect(seller).addLender(
+		lender.address
+	);
+
+  
 }
 
 // We recommend this pattern to be able to use async/await everywhere

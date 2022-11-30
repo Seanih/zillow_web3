@@ -35,12 +35,16 @@ describe('Escrow', () => {
 			.approve(EscrowContract.address, 1);
 		await approveTx.wait();
 
-		// add lender and inspector addresses to contract
-		let addLender = await EscrowContract.connect(seller).addLender(
+		// add buyer, lender and inspector addresses to contract
+		const addBuyer = await EscrowContract.connect(seller).addBuyer(
+			buyer.address
+		);
+
+		const addLender = await EscrowContract.connect(buyer).addLender(
 			lender.address
 		);
 
-		let addInspector = await EscrowContract.connect(seller).addInspector(
+		const addInspector = await EscrowContract.connect(buyer).addInspector(
 			inspector.address
 		);
 
@@ -57,6 +61,7 @@ describe('Escrow', () => {
 
 	async function deployWithListingFixture() {
 		let [buyer, seller, inspector, lender] = await ethers.getSigners();
+
 		// Deploy contracts
 		const reContract = await ethers.getContractFactory('RealEstate');
 		const reNftContract = await reContract.deploy();
@@ -73,7 +78,7 @@ describe('Escrow', () => {
 		let tx = await reNftContract
 			.connect(seller)
 			.mint(
-				'https://ipfs.io/ipfs/QmQUozrHLAusXDxrvsESJ3PYB3rUeUuBAvVWw6nop2uu7c/1.png'
+				'https://ipfs.io/ipfs/QmQVcpsjrA6cr1iJjZAodYwmPekYgbnXGo4DFubJiLc2EB/1.json'
 			);
 		await tx.wait();
 
@@ -85,12 +90,16 @@ describe('Escrow', () => {
 			.approve(EscrowContract.address, 1);
 		await approveTx.wait();
 
-		// add lender and inspector addresses to contract
-		let addLender = await EscrowContract.connect(seller).addLender(
+		// add buyer, lender and inspector addresses to contract
+		const addBuyer = await EscrowContract.connect(seller).addBuyer(
+			buyer.address
+		);
+
+		const addLender = await EscrowContract.connect(buyer).addLender(
 			lender.address
 		);
 
-		let addInspector = await EscrowContract.connect(seller).addInspector(
+		const addInspector = await EscrowContract.connect(buyer).addInspector(
 			inspector.address
 		);
 
@@ -144,12 +153,16 @@ describe('Escrow', () => {
 			.approve(EscrowContract.address, 1);
 		await approveTx.wait();
 
-		// add lender and inspector addresses to contract
-		let addLender = await EscrowContract.connect(seller).addLender(
+		// add buyer, lender and inspector addresses to contract
+		const addBuyer = await EscrowContract.connect(seller).addBuyer(
+			buyer.address
+		);
+
+		const addLender = await EscrowContract.connect(buyer).addLender(
 			lender.address
 		);
 
-		let addInspector = await EscrowContract.connect(seller).addInspector(
+		const addInspector = await EscrowContract.connect(buyer).addInspector(
 			inspector.address
 		);
 
@@ -202,24 +215,6 @@ describe('Escrow', () => {
 			expect(await EscrowContract.sellerAddress()).to.equal(seller.address);
 		});
 
-		it('returns inspector address', async () => {
-			const { inspector, EscrowContract } = await loadFixture(
-				deployContractFixture
-			);
-
-			expect(await EscrowContract.inspectorAddress()).to.equal(
-				inspector.address
-			);
-		});
-
-		it('returns lender address', async () => {
-			const { lender, EscrowContract } = await loadFixture(
-				deployContractFixture
-			);
-
-			expect(await EscrowContract.lenderAddress()).to.equal(lender.address);
-		});
-
 		it('mints NFT', async () => {
 			const { seller, reNftContract } = await loadFixture(
 				deployContractFixture
@@ -236,7 +231,25 @@ describe('Escrow', () => {
 			expect(await EscrowContract.isListed(1)).to.equal(true);
 		});
 
-		it('updates ownership', async () => {
+		it('returns inspector address', async () => {
+			const { inspector, EscrowContract } = await await loadFixture(
+				deployWithListingFixture
+			);
+
+			expect(await EscrowContract.inspectorAddress()).to.equal(
+				inspector.address
+			);
+		});
+
+		it('returns lender address', async () => {
+			const { lender, EscrowContract } = await await loadFixture(
+				deployWithListingFixture
+			);
+
+			expect(await EscrowContract.lenderAddress()).to.equal(lender.address);
+		});
+
+		it('updates NFT ownership', async () => {
 			const { EscrowContract, reNftContract } = await loadFixture(
 				deployWithListingFixture
 			);
@@ -249,15 +262,13 @@ describe('Escrow', () => {
 				deployWithListingFixture
 			);
 
-			const result = await EscrowContract.buyer(1);
-			expect(result).to.equal(buyer.address);
+			expect(await EscrowContract.buyerAddress()).to.equal(buyer.address);
 		});
 
 		it('returns purchase price', async () => {
 			const { EscrowContract } = await loadFixture(deployWithListingFixture);
 
-			const result = await EscrowContract.purchasePrice(1);
-			expect(result).to.equal(tokensInWei(10));
+			expect(await EscrowContract.purchasePrice(1)).to.equal(tokensInWei(10));
 		});
 
 		it('returns amount of earnest deposit', async () => {
@@ -265,8 +276,7 @@ describe('Escrow', () => {
 				deployWithListingFixture
 			);
 
-			const result = await EscrowContract.earnestDeposit(1);
-			expect(result).to.equal(tokensInWei(5));
+			expect(await EscrowContract.earnestDeposit(1)).to.equal(tokensInWei(5));
 		});
 
 		it('only allows seller to list NFT', async () => {

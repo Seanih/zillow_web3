@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: Unlicense
+//SPDX-License-Identifier: Unlicensed
 pragma solidity ^0.8.0;
 
 interface IERC721 {
@@ -13,12 +13,12 @@ contract Escrow {
     address public nftContractAddress;
     address payable public sellerAddress;
     address public inspectorAddress;
+    address payable public buyerAddress;
     address payable public lenderAddress; //*can be buyer address if self-financed
 
     mapping(uint256 => bool) public isListed;
     mapping(uint256 => uint256) public purchasePrice;
     mapping(uint256 => uint256) public earnestDeposit;
-    mapping(uint256 => address) public buyer;
     mapping(uint256 => bool) public inspectionPassed;
     mapping(uint256 => mapping(address => bool)) public saleApproved;
     mapping(uint256 => mapping(address => uint256)) public balanceDeposits;
@@ -37,9 +37,9 @@ contract Escrow {
         _;
     }
 
-    modifier onlyBuyer(uint256 _nftID) {
+    modifier onlyBuyer() {
         require(
-            msg.sender == buyer[_nftID],
+            msg.sender == buyerAddress,
             "only an approved buyer can call this function"
         );
         _;
@@ -61,27 +61,31 @@ contract Escrow {
         _;
     }
 
-    modifier participantsOnly(uint256 _nftID) {
+    modifier participantsOnly() {
         require(
             msg.sender == lenderAddress ||
-                msg.sender == buyer[_nftID] ||
+                msg.sender == buyerAddress ||
                 msg.sender == sellerAddress,
             "This address is not authorized to call this function"
         );
         _;
     }
 
-    function addInspector(address _inspector) external onlySeller {
+    function addBuyer(address payable _buyer) external onlySeller {
+        buyerAddress = _buyer;
+    }
+
+    function addInspector(address _inspector) external onlyBuyer {
         inspectorAddress = _inspector;
     }
 
-    function addLender(address payable _lender) external onlySeller {
+    function addLender(address payable _lender) external onlyBuyer {
         lenderAddress = _lender;
     }
 
     function list(
         uint256 _nftID,
-        address _buyer,
+        address payable _buyer,
         uint256 _purchasePrice,
         uint256 _earnestDeposit
     ) public payable onlySeller {
@@ -94,7 +98,7 @@ contract Escrow {
         );
 
         isListed[_nftID] = true;
-        buyer[_nftID] = _buyer;
+        buyerAddress = _buyer;
         purchasePrice[_nftID] = _purchasePrice;
         earnestDeposit[_nftID] = _earnestDeposit;
         inspectionPassed[_nftID];
@@ -113,7 +117,7 @@ contract Escrow {
     }
 
     // buyer deposits downpayment to contract
-    function depositEarnest(uint256 _nftID) public payable onlyBuyer(_nftID) {
+    function depositEarnest(uint256 _nftID) public payable onlyBuyer {
         require(
             msg.value >= earnestDeposit[_nftID],
             "you have to deposit at least the minimum requirement"
@@ -128,23 +132,23 @@ contract Escrow {
         inspectionPassed[_nftID] = true;
     }
 
-    function approveSale(uint256 _nftID) public participantsOnly(_nftID) {
+    function approveSale(uint256 _nftID) public participantsOnly {
         saleApproved[_nftID][msg.sender] = true;
     }
 
     function cancelSale(uint256 _nftID) public {
         require(
-            msg.sender == buyer[_nftID] || msg.sender == sellerAddress,
+            msg.sender == buyerAddress || msg.sender == sellerAddress,
             "this address is not authorized to cancel the sale"
         );
 
         // sale cancelled BEFORE inspection or because of a failed inspection
         if (
-            ((!inspectionPassed[_nftID]) && msg.sender == buyer[_nftID]) ||
+            ((!inspectionPassed[_nftID]) && msg.sender == buyerAddress) ||
             msg.sender == sellerAddress
         ) {
             //! return escrow to buyer
-            (bool saleCancelled, ) = payable(buyer[_nftID]).call{
+            (bool saleCancelled, ) = payable(buyerAddress).call{
                 value: earnestDeposit[_nftID]
             }("");
             require(saleCancelled, "The sale was unable to be cancelled");
@@ -163,7 +167,7 @@ contract Escrow {
             );
 
             cancelledSales[_nftID] = msg.sender;
-        } else if (inspectionPassed[_nftID] && msg.sender == buyer[_nftID]) {
+        } else if (inspectionPassed[_nftID] && msg.sender == buyerAddress) {
             //! seller keeps earnest deposit
             (bool sentToSeller, ) = sellerAddress.call{
                 value: earnestDeposit[_nftID]
@@ -186,7 +190,7 @@ contract Escrow {
             cancelledSales[_nftID] = msg.sender;
         } else if (inspectionPassed[_nftID] && msg.sender == sellerAddress) {
             //! return escrow to buyer
-            (bool saleCancelled, ) = payable(buyer[_nftID]).call{
+            (bool saleCancelled, ) = payable(buyerAddress).call{
                 value: purchasePrice[_nftID]
             }("");
             require(saleCancelled, "The sale was unable to be cancelled");
@@ -215,9 +219,9 @@ contract Escrow {
             saleApproved[_nftID][lenderAddress],
             "lender must approve the sale"
         );
-        //buyer[_nftID] is the buyer's address
+        //buyerAddress is the buyer's address
         require(
-            saleApproved[_nftID][buyer[_nftID]],
+            saleApproved[_nftID][buyerAddress],
             "buyer must approve the sale"
         );
         require(
@@ -243,7 +247,7 @@ contract Escrow {
 
         IERC721(nftContractAddress).transferFrom(
             address(this),
-            buyer[_nftID],
+            buyerAddress,
             _nftID
         );
     }
