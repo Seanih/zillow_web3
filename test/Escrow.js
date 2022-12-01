@@ -30,10 +30,10 @@ describe('Escrow', () => {
 		let escNftAdd = await EscrowContract.nftContractAddress();
 
 		// approve NFT to be transferred
-		let approveTx = await reNftContract
+		let approveNftTransfer = await reNftContract
 			.connect(seller)
 			.approve(EscrowContract.address, 1);
-		await approveTx.wait();
+		await approveNftTransfer.wait();
 
 		// add buyer, lender and inspector addresses to contract
 		const addBuyer = await EscrowContract.connect(seller).addBuyer(
@@ -85,10 +85,10 @@ describe('Escrow', () => {
 		let escNftAdd = await EscrowContract.nftContractAddress();
 
 		// approve NFT to be transferred
-		let approveTx = await reNftContract
+		let approveNftTransfer = await reNftContract
 			.connect(seller)
 			.approve(EscrowContract.address, 1);
-		await approveTx.wait();
+		await approveNftTransfer.wait();
 
 		// add buyer, lender and inspector addresses to contract
 		const addBuyer = await EscrowContract.connect(seller).addBuyer(
@@ -148,10 +148,10 @@ describe('Escrow', () => {
 		let escNftAdd = await EscrowContract.nftContractAddress();
 
 		// approve NFT to be transferred
-		let approveTx = await reNftContract
+		let approveNftTransfer = await reNftContract
 			.connect(seller)
 			.approve(EscrowContract.address, 1);
-		await approveTx.wait();
+		await approveNftTransfer.wait();
 
 		// add buyer, lender and inspector addresses to contract
 		const addBuyer = await EscrowContract.connect(seller).addBuyer(
@@ -292,10 +292,10 @@ describe('Escrow', () => {
 			await tx2.wait();
 
 			// approve NFT to be transferred
-			let approveTx2 = await reNftContract
+			let approveNftTransfer2 = await reNftContract
 				.connect(seller)
 				.approve(EscrowContract.address, 2);
-			await approveTx2.wait();
+			await approveNftTransfer2.wait();
 
 			// try to list reNFT
 			await expect(

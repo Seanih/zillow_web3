@@ -88,7 +88,7 @@ contract Escrow {
         address payable _buyer,
         uint256 _purchasePrice,
         uint256 _earnestDeposit
-    ) public payable onlySeller {
+    ) external payable onlySeller {
         //* contract must first be approved to transfer NFTs
 
         IERC721(nftContractAddress).transferFrom(
@@ -117,7 +117,7 @@ contract Escrow {
     }
 
     // buyer deposits downpayment to contract
-    function depositEarnest(uint256 _nftID) public payable onlyBuyer {
+    function depositEarnest(uint256 _nftID) external payable onlyBuyer {
         require(
             msg.value >= earnestDeposit[_nftID],
             "you have to deposit at least the minimum requirement"
@@ -128,7 +128,7 @@ contract Escrow {
         return address(this).balance;
     }
 
-    function approveInspection(uint256 _nftID) public onlyInspector {
+    function approveInspection(uint256 _nftID) external onlyInspector {
         inspectionPassed[_nftID] = true;
     }
 
@@ -136,7 +136,7 @@ contract Escrow {
         saleApproved[_nftID][msg.sender] = true;
     }
 
-    function cancelSale(uint256 _nftID) public {
+    function cancelSale(uint256 _nftID) external {
         require(
             msg.sender == buyerAddress || msg.sender == sellerAddress,
             "this address is not authorized to cancel the sale"
@@ -212,7 +212,7 @@ contract Escrow {
         }
     }
 
-    function finalizeSale(uint256 _nftID) public onlySeller {
+    function finalizeSale(uint256 _nftID) external onlySeller {
         //! series of checks to ensure all parties approved the sale and the inspection passed
         require(inspectionPassed[_nftID], "inspection must pass first");
         require(
