@@ -19,15 +19,13 @@ async function main() {
 	console.log(`Deployed real estate NFT contract to: ${ReNftContract.address}`);
 	console.log('Minting 3 properties...');
 
-	// mint real estate NFTs
+	// mint 3 real estate NFTs to seed the blockchain
 	let mintNft;
 	let numNftsMinted = 0;
 
-	for (let i = 0; i < 3; i++) {
+	for (let i = 1; i <= 3; i++) {
 		mintNft = await ReNftContract.connect(seller).mint(
-			`https://ipfs.io/ipfs/QmQVcpsjrA6cr1iJjZAodYwmPekYgbnXGo4DFubJiLc2EB/${
-				i + 1
-			}.json`
+			`https://ipfs.io/ipfs/QmQVcpsjrA6cr1iJjZAodYwmPekYgbnXGo4DFubJiLc2EB/${i}.json`
 		);
 
 		await mintNft.wait();
@@ -43,6 +41,7 @@ async function main() {
 		seller.address
 	);
 	await EscrowContract.deployed();
+	console.log(`Deployed Escrow contract to: ${EscrowContract.address}`);
 
 	//! add buyer, lender and inspector to contract
 	const addBuyer = await EscrowContract.connect(seller).addBuyer(buyer.address);

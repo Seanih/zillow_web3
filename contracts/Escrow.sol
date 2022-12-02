@@ -89,7 +89,7 @@ contract Escrow {
         uint256 _purchasePrice,
         uint256 _earnestDeposit
     ) external payable onlySeller {
-        //* contract must first be approved to transfer NFTs
+        //!----- contract must first be approved to transfer NFTs -----
 
         IERC721(nftContractAddress).transferFrom(
             msg.sender,
@@ -132,7 +132,7 @@ contract Escrow {
         inspectionPassed[_nftID] = true;
     }
 
-    function approveSale(uint256 _nftID) public participantsOnly {
+    function approveSale(uint256 _nftID) external participantsOnly {
         saleApproved[_nftID][msg.sender] = true;
     }
 
@@ -215,6 +215,7 @@ contract Escrow {
     function finalizeSale(uint256 _nftID) external onlySeller {
         //! series of checks to ensure all parties approved the sale and the inspection passed
         require(inspectionPassed[_nftID], "inspection must pass first");
+
         require(
             saleApproved[_nftID][lenderAddress],
             "lender must approve the sale"
@@ -224,10 +225,12 @@ contract Escrow {
             saleApproved[_nftID][buyerAddress],
             "buyer must approve the sale"
         );
+
         require(
             saleApproved[_nftID][sellerAddress],
             "seller must approve the sale"
         );
+
         // ensure contract has enough funds
         require(
             address(this).balance >= purchasePrice[_nftID],
